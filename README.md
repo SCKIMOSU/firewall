@@ -1,15 +1,80 @@
-# [웹서버14] IP 필터링을 통한 방화벽(Firewall)
+# [웹서버14] IP 필터링 기반 방화벽(Firewall)
 
 ---
 
 ## 🔒 목표: IP 기반 방화벽 기능을 갖춘 Django 프로젝트
 
-### ✅ 기능 요약
+### ✅ 기능
 
 1. **화이트리스트 기반 접근 제어** (허용된 IP만 접근 가능)
 2. **관리자 페이지에서 IP 목록 CRUD 관리**
 3. 모든 요청 전 `Middleware`를 통해 검사
 4. 로그 기록 (누가, 언제, 어떤 IP로 차단되었는지)
+
+---
+
+## ✅ **IP Filtering** 수행 위치
+
+🔹 일반적으로 Gunicorn이 아닌 Django 애플리케이션의 미들웨어(Middleware)가 수행
+
+### 🔹 Gunicorn
+
+- WSGI 서버.
+- 클라이언트 요청을 Django 앱에 전달해주는 **"전달자" 역할**.
+- **자체적으로 요청을 검사하거나 필터링하지 않음**.
+
+### 🔹 Django
+
+- 웹 애플리케이션 로직 수행.
+- IP 필터링, 인증, 권한 등 대부분의 **보안 및 로직 처리는 Django에서 수행**.
+- *`Middleware`*를 통해 요청을 가로채서 **IP 검사** 같은 처리를 할 수 있음
+
+---
+
+## ✅ 흐름 설명
+
+```
+클라이언트 → Nginx (리버스 프록시) → Gunicorn → Django Middleware → View 처리
+
+```
+
+### 🔹IP Filtering 위치:
+
+- 🔒 IP Filtering은 아래 위치에서 수행됨:
+
+```
+request → [Django Middleware: IPFirewallMiddleware] → view
+
+```
+
+---
+
+## ✅ 예시: IP 필터링 미들웨어
+
+```python
+class IPFirewallMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        ip = request.META.get('REMOTE_ADDR')
+        if not AllowedIP.objects.filter(ip_address=ip).exists():
+            return HttpResponseForbidden(f"Access denied for IP: {ip}")
+        return self.get_response(request)
+
+```
+
+- 이 코드는 Django 앱에서 실행되며, Gunicorn은 단순히 요청을 Django로 전달
+
+---
+
+## ✅ 결론
+
+| 항목 | 역할 설명 |
+| --- | --- |
+| Gunicorn | 요청을 Django에 전달 (필터링 X) |
+| Django | 실제 IP 필터링 실행 (`Middleware`에서 검사) |
+| Nginx | 필요시 기본 방화벽 역할 가능 (IP level 접근 차단) |
 
 ---
 
