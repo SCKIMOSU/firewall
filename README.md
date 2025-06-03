@@ -395,6 +395,7 @@ admin.site.register(AllowedIP, AllowedIPAdmin)
 from django.http import HttpResponseForbidden
 from .models import AllowedIP
 
+
 class IPFirewallMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
@@ -402,15 +403,16 @@ class IPFirewallMiddleware:
     def __call__(self, request):
         allowed_ips = [ip.ip_address for ip in AllowedIP.objects.all()]
         remote_ip = self.get_client_ip(request)
-            
-       # ✅ 클라이언트 IP 및 허용 IP 목록 로그 출력
-		    print("📌 요청한 클라이언트 IP:", remote_ip)
-		    print("✅ 현재 허용된 IP 목록:", allowed_ips)
+
+        # ✅ 클라이언트 IP 및 허용 IP 목록 로그 출력
+        print("📌 요청한 클라이언트 IP:", remote_ip)
+        print("✅ 현재 허용된 IP 목록:", allowed_ips)
 
         if remote_ip not in allowed_ips:
             return HttpResponseForbidden(f"Access denied for IP: {remote_ip}")
 
         return self.get_response(request)
+
 
     def get_client_ip(self, request):
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
