@@ -24,7 +24,7 @@ python manage.py startapp firewall
 
 ---
 
-- 앱 디렉토리 구
+- 프로젝트 디렉토리 구조
 
 ```
 
