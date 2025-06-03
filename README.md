@@ -1,8 +1,8 @@
-#  Django 방화벽(Firewall)
+# [웹서버14] IP 필터링을 통한 방화벽(Firewall)
 
 ---
 
-## 🔒 목표: IP 기반 방화벽 기능을 갖춘 Django 프로젝트 만들기
+## 🔒 목표: IP 기반 방화벽 기능을 갖춘 Django 프로젝트
 
 ### ✅ 기능 요약
 
@@ -10,6 +10,149 @@
 2. **관리자 페이지에서 IP 목록 CRUD 관리**
 3. 모든 요청 전 `Middleware`를 통해 검사
 4. 로그 기록 (누가, 언제, 어떤 IP로 차단되었는지)
+
+---
+
+### ✅ 🔧 미들웨어(Middleware)란?
+
+- Django에서 미들웨어(Middleware)는 요청(Request)과 응답(Response)의 **중간 지점에서 실행되는 처리 로직**
+- **요청이 Django의 뷰(View)에 도달하기 전 또는 응답이 사용자에게 전달되기 전**에 특정 작업을 수행
+
+---
+
+## 🧭 요청-응답 흐름에서의 위치
+
+```
+사용자 → [미들웨어1 → 미들웨어2 → ...] → 뷰(View) → [미들웨어... → 응답] → 사용자
+
+```
+
+---
+
+## ✅ 미들웨어 역할
+
+| 역할 | 설명 |
+| --- | --- |
+| 🔐 인증(Authentication) | 로그인한 사용자 확인 (`AuthenticationMiddleware`) |
+| 🧱 접근 제한 | 권한/허용된 IP 확인 (`IPFirewallMiddleware` 같은 사용자 정의) |
+| 🐞 예외 처리 | 오류를 포착하고 사용자 친화적으로 처리 |
+| 📈 요청 로깅 | 요청 정보 로그 저장 (IP, URL 등) |
+| 🌍 언어 설정 | 사용자의 브라우저 언어 설정에 따라 다국어 적용 |
+
+---
+
+## ✅ Django에서 기본 제공하는 미들웨어
+
+- `settings.py`의 `MIDDLEWARE` 항목에 나열됨
+
+```python
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    ...
+]
+
+```
+
+---
+
+## ✅ 예시 : 커스텀 미들웨어 제작
+
+```python
+class SimpleLogMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        print(f"📍 요청 경로: {request.path}")
+        response = self.get_response(request)
+        return response
+
+```
+
+## ✅ 예시: 사용자 IP 허용 여부 확인 미들웨어
+
+```python
+class IPFirewallMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        ip = request.META.get('REMOTE_ADDR')
+        if ip != '127.0.0.1':
+            return HttpResponseForbidden("Access Denied")
+        return self.get_response(request)
+
+```
+
+## ✅ 미들웨어 설정 위치
+
+- `settings.py`의 `MIDDLEWARE` 항목에 **문자열 경로로 등록**
+
+```python
+MIDDLEWARE += ['myapp.middleware.SimpleLogMiddleware']
+
+```
+
+```python
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    ...
+    'firewall.middleware.IPFirewallMiddleware',  # 사용자 정의 미들웨어
+]
+
+```
+
+---
+
+## ✅ 주요 메서드 요약
+
+| 메서드 | 설명 |
+| --- | --- |
+| `__init__(self, get_response)` | 서버 시작 시 1회 실행 |
+| `__call__(self, request)` | 요청마다 실행. 여기에 주요 로직 작성 |
+| `process_view(...)` | 뷰 함수가 실행되기 전에 호출 (선택적 구현) |
+| `process_exception(...)` | 예외 발생 시 호출 |
+| `process_template_response(...)` | TemplateResponse 반환 시 후처리 |
+
+---
+
+## ✅ 요약
+
+- 미들웨어는 **모든 요청과 응답에 관여할 수 있는 훅(Hook)** 역할
+- 인증, IP 제한, 로깅, 속도 제한(Rate Limiting), CORS, 보안 설정 등 다양한 기능 처리 가능
+- `MIDDLEWARE` 리스트의 **순서대로 실행되며**, 응답 시에는 역순으로 돌아감
+
+## ✅ Django 미들웨어의 주요 역할
+
+- Django에서 미들웨어(Middleware)는 요청과 응답 사이에서 처리되는 **가운데(intermediary) 계층**
+- 웹 애플리케이션의 **전반적인 요청/응답 흐름을 제어**
+- Django 프로젝트 전역에 적용됨
+- 인증, 권한, 로깅, 보안, IP 제어 등 **공통 기능을 캡슐화**할 수 있음
+
+|  **훅(Hook)** 역할 | 설명 |
+| --- | --- |
+| **요청 전 처리** | 사용자의 `request`를 view에 전달하기 전에 검사, 수정, 제한 가능 |
+| **응답 후 처리** | view에서 생성한 `response`를 클라이언트에 전달하기 전에 수정 가능 |
+| **보안 처리** | IP 차단, 인증 검사, CSRF 보호, SSL 강제화 등 |
+| **로깅 / 모니터링** | 요청 로그 기록, 성능 측정, 오류 추적 등 |
+| **세션 및 쿠키 관리** | 사용자의 로그인 상태 확인, 세션 갱신 등 |
+| **언어/지역 설정** | 다국어 처리(i18n), timezone 설정 등 |
+
+## ✅ 미들웨어 동작 순서
+
+1. **브라우저가 요청** → Django는 `MIDDLEWARE`에 설정된 클래스들을 **차례대로 실행**하며 `request` 객체를 처리
+2. 마지막으로 **View 함수 또는 View 클래스** 실행
+3. View에서 만들어진 `response` 객체가 **역순으로 미들웨어를 거쳐 클라이언트로 반환**
+
+```
+Request ▶ [Middleware 1] ▶ [Middleware 2] ▶ View ▶ [Middleware 2] ▶ [Middleware 1] ▶ Response
+
+```
 
 ---
 
@@ -24,7 +167,7 @@ python manage.py startapp firewall
 
 ---
 
-- 앱 디렉토리 구
+- 앱 디렉토리 구조
 
 ```
 
@@ -217,93 +360,6 @@ class IPFirewallMiddleware:
 ---
 
 - **클라이언트 IP (`remote_ip`)가 실제로 어떻게 인식되는지 확인하려면**, 미들웨어의 `__call__()` 함수 안에 **로그 출력 코드를 작성**.
-
-### ✅ 🔧 미들웨어(Middleware)란?
-
-- Django에서 미들웨어(Middleware)는 요청(Request)과 응답(Response)의 **중간 지점에서 실행되는 처리 로직**
-- **요청이 Django의 뷰(View)에 도달하기 전 또는 응답이 사용자에게 전달되기 전**에 특정 작업을 수행
-
----
-
-## 🧭 요청-응답 흐름에서의 위치
-
-```
-사용자 → [미들웨어1 → 미들웨어2 → ...] → 뷰(View) → [미들웨어... → 응답] → 사용자
-
-```
-
----
-
-## ✅ 미들웨어의 역할 예시
-
-| 역할 | 설명 |
-| --- | --- |
-| 🔐 인증(Authentication) | 로그인한 사용자 확인 (`AuthenticationMiddleware`) |
-| 🧱 접근 제한 | 권한/허용된 IP 확인 (`IPFirewallMiddleware` 같은 사용자 정의) |
-| 🐞 예외 처리 | 오류를 포착하고 사용자 친화적으로 처리 |
-| 📈 요청 로깅 | 요청 정보 로그 저장 (IP, URL 등) |
-| 🌍 언어 설정 | 사용자의 브라우저 언어 설정에 따라 다국어 적용 |
-
----
-
-## ✅ Django에서 기본 제공하는 미들웨어
-
-- `settings.py`의 `MIDDLEWARE` 항목에 나열됨
-
-```python
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    ...
-]
-
-```
-
----
-
-## ✅ 커스텀 미들웨어 제작 예시
-
-```python
-class SimpleLogMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        print(f"📍 요청 경로: {request.path}")
-        response = self.get_response(request)
-        return response
-
-```
-
-- `settings.py`에 추가:
-
-```python
-MIDDLEWARE += ['myapp.middleware.SimpleLogMiddleware']
-
-```
-
----
-
-## ✅ 주요 메서드 요약
-
-| 메서드 | 설명 |
-| --- | --- |
-| `__init__(self, get_response)` | 서버 시작 시 1회 실행 |
-| `__call__(self, request)` | 요청마다 실행. 여기에 주요 로직 작성 |
-| `process_view(...)` | 뷰 함수가 실행되기 전에 호출 (선택적 구현) |
-| `process_exception(...)` | 예외 발생 시 호출 |
-| `process_template_response(...)` | TemplateResponse 반환 시 후처리 |
-
----
-
-## ✅ 핵심 요약
-
-- 미들웨어는 **모든 요청과 응답에 관여할 수 있는 훅(Hook)** 역할
-- 인증, IP 제한, 로깅, 속도 제한(Rate Limiting), CORS, 보안 설정 등 다양한 기능 처리 가능
-- `MIDDLEWARE` 리스트의 **순서대로 실행되며**, 응답 시에는 역순으로 돌아감
 
 ---
 
@@ -589,76 +645,6 @@ return HttpResponseForbidden("🔥 이 IP는 차단되었습니다: " + remote_i
 | 로그인 필요 | `self.client.login(...)` 또는 인증 토큰 제공 |
 | CSRF 오류 | `{% csrf_token %}` 추가 또는 헤더 설정 |
 | 권한 부족 | 유저에 권한 부여 or 권한 미들웨어 확인 |
-
----
-
-## ✅ Django 미들웨어의 주요 역할
-
-- Django에서 미들웨어(Middleware)는 요청과 응답 사이에서 처리되는 **가운데(intermediary) 계층**
-- 웹 애플리케이션의 **전반적인 요청/응답 흐름을 제어**
-
-| 역할 | 설명 |
-| --- | --- |
-| **요청 전 처리** | 사용자의 `request`를 view에 전달하기 전에 검사, 수정, 제한 가능 |
-| **응답 후 처리** | view에서 생성한 `response`를 클라이언트에 전달하기 전에 수정 가능 |
-| **보안 처리** | IP 차단, 인증 검사, CSRF 보호, SSL 강제화 등 |
-| **로깅 / 모니터링** | 요청 로그 기록, 성능 측정, 오류 추적 등 |
-| **세션 및 쿠키 관리** | 사용자의 로그인 상태 확인, 세션 갱신 등 |
-| **언어/지역 설정** | 다국어 처리(i18n), timezone 설정 등 |
-
----
-
-## ✅ 미들웨어 동작 순서
-
-1. **브라우저가 요청** → Django는 `MIDDLEWARE`에 설정된 클래스들을 **차례대로 실행**하며 `request` 객체를 처리
-2. 마지막으로 **View 함수 또는 View 클래스** 실행
-3. View에서 만들어진 `response` 객체가 **역순으로 미들웨어를 거쳐 클라이언트로 반환**
-
-```
-Request ▶ [Middleware 1] ▶ [Middleware 2] ▶ View ▶ [Middleware 2] ▶ [Middleware 1] ▶ Response
-
-```
-
----
-
-## ✅ 예시: 사용자 IP 허용 여부 확인 미들웨어
-
-```python
-class IPFirewallMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        ip = request.META.get('REMOTE_ADDR')
-        if ip != '127.0.0.1':
-            return HttpResponseForbidden("Access Denied")
-        return self.get_response(request)
-
-```
-
----
-
-## ✅ 미들웨어 설정 위치
-
-`settings.py`의 `MIDDLEWARE` 항목에 **문자열 경로로 등록**해야 합니다.
-
-```python
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    ...
-    'firewall.middleware.IPFirewallMiddleware',  # 사용자 정의 미들웨어
-]
-
-```
-
----
-
-## ✅ 핵심 요약
-
-- 미들웨어는 요청 전후를 가로채는 **후킹 시스템**
-- Django 프로젝트 전역에 적용됨
-- 인증, 권한, 로깅, 보안, IP 제어 등 **공통 기능을 캡슐화**할 수 있음
 
 ---
 
