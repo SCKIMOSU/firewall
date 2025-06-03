@@ -1,4 +1,4 @@
-# Django 방화벽(Firewall)
+#  Django 방화벽(Firewall)
 
 ---
 
@@ -24,7 +24,7 @@ python manage.py startapp firewall
 
 ---
 
-- 프로젝트 디렉토리 구조
+- 앱 디렉토리 구
 
 ```
 
@@ -217,228 +217,6 @@ class IPFirewallMiddleware:
 ---
 
 - **클라이언트 IP (`remote_ip`)가 실제로 어떻게 인식되는지 확인하려면**, 미들웨어의 `__call__()` 함수 안에 **로그 출력 코드를 작성**.
-
-## 5. Middleware 등록
-
-`firewall_project/settings.py`:
-
-```python
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    ...
-    'firewall.middleware.IPFirewallMiddleware',  # 여기에 추가
-]
-
-```
-
----
-
-## 6. 테스트용 뷰 추가
-
-`firewall/views.py`:
-
-```python
-from django.http import HttpResponse
-
-def index(request):
-    return HttpResponse("Welcome! Your IP is allowed.")
-
-```
-
-`firewall/urls.py`:
-
-```python
-from django.urls import path
-from .views import index
-
-urlpatterns = [
-    path('', index),
-]
-
-```
-
-`firewall_project/urls.py`:
-
-```python
-from django.contrib import admin
-from django.urls import path, include
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('firewall.urls')),
-]
-
-```
-
----
-
-## 7. 초기 데이터 추가
-
-`python manage.py createsuperuser`로 관리자 계정 생성 후,
-
-관리자 페이지에서 `127.0.0.1` 또는 테스트 중인 IP를 허용 IP로 추가하세요.
-
----
-
-## 8. 차단 로그 남기기
-
-`firewall/models.py`에 추가:
-
-```python
-class BlockedIPLog(models.Model):
-    ip_address = models.GenericIPAddressField()
-    accessed_path = models.CharField(max_length=255)
-    timestamp = models.DateTimeField(auto_now_add=True)
-
-```
-
-그리고 `middleware.py`에서 로그 남기기:
-
-```python
-from .models import BlockedIPLog
-
-if remote_ip not in allowed_ips:
-    BlockedIPLog.objects.create(ip_address=remote_ip, accessed_path=request.path)
-    return HttpResponseForbidden(f"Access denied for IP: {remote_ip}")
-
-```
-
----
-
-## ✅ 요약
-
-| 구성 요소 | 역할 |
-| --- | --- |
-| `AllowedIP` 모델 | 접근 허용된 IP 저장 |
-| Middleware | 요청마다 IP 확인 후 차단 또는 통과 |
-| Admin 사이트 | IP 화이트리스트 관리 |
-| 로그 기록 | 차단된 IP 기록 (선택) |
-
----
-
-## **허용된 IP(예: 127.0.0.1)를 직접 DB에 추가하는 코드**
-
----
-
-## ✅ 방법 1: `shell`에서 직접 등록
-
-```bash
-python manage.py shell
-
-```
-
-```python
-from firewall.models import AllowedIP
-
-# 127.0.0.1 등록
-AllowedIP.objects.create(ip_address="127.0.0.1", description="localhost for development")
-# 현재 PC의 외부 IP도 등록 가능
-AllowedIP.objects.create(ip_address="192.168.0.10", description="내부 테스트 서버")
-
-```
-
----
-
-## ✅ 방법 2: 마이그레이션 후 초기 데이터 자동 등록 (데이터 마이그레이션)
-
-`firewall/migrations/0002_auto_add_localhost.py` (직접 생성):
-
-```python
-from django.db import migrations
-
-def add_default_ip(apps, schema_editor):
-    AllowedIP = apps.get_model('firewall', 'AllowedIP')
-    AllowedIP.objects.create(ip_address="127.0.0.1", description="localhost default access")
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        ('firewall', '0001_initial'),
-    ]
-
-    operations = [
-        migrations.RunPython(add_default_ip),
-    ]
-
-```
-
-```bash
-python manage.py migrate
-
-```
-
----
-
-## ✅ 방법 3: `fixtures`로 등록
-
-`firewall/fixtures/allowed_ips.json`:
-
-```json
-[
-  {
-    "model": "firewall.allowedip",
-    "pk": 1,
-    "fields": {
-      "ip_address": "127.0.0.1",
-      "description": "localhost default"
-    }
-  }
-]
-
-```
-
-- 등록:
-
-```bash
-python manage.py loaddata allowed_ips.json
-
-```
-
----
-
-![fire5.png](fire5.png)
-
-## 🔍 확인
-
-```bash
-python manage.py shell
-
-```
-
-```python
-from firewall.models import AllowedIP
-AllowedIP.objects.all()
-
-```
-
----
-
-![fire2.png](fire2.png)
-
-## ✅ postman 테스트
-
-- allowdip : "10.223.112.34"
-- X-Forwarded-For: "10.223.112.35" 로 접속하면
-    - Access denied for IP: 10.223.112.35
-
-```jsx
-  {
-    "model": "firewall.allowedip",
-    "pk": 2,
-    "fields": {
-      "ip_address": "10.223.112.34",
-      "description": "Postman test"
-    }
-  }
-```
-
-![db.png](db.png)
-
-- allowdip : "10.223.112.34"
-- X-Forwarded-For: "10.223.112.34" 로 접속하면
-    - Access denied for IP: 10.223.112.35
-
-![db.png](db%201.png)
 
 ### ✅ 🔧 미들웨어(Middleware)란?
 
@@ -814,8 +592,6 @@ return HttpResponseForbidden("🔥 이 IP는 차단되었습니다: " + remote_i
 
 ---
 
----
-
 ## ✅ Django 미들웨어의 주요 역할
 
 - Django에서 미들웨어(Middleware)는 요청과 응답 사이에서 처리되는 **가운데(intermediary) 계층**
@@ -885,3 +661,225 @@ MIDDLEWARE = [
 - 인증, 권한, 로깅, 보안, IP 제어 등 **공통 기능을 캡슐화**할 수 있음
 
 ---
+
+## 5. Middleware 등록
+
+`firewall_project/settings.py`:
+
+```python
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    ...
+    'firewall.middleware.IPFirewallMiddleware',  # 여기에 추가
+]
+
+```
+
+---
+
+## 6. 테스트용 뷰 추가
+
+`firewall/views.py`:
+
+```python
+from django.http import HttpResponse
+
+def index(request):
+    return HttpResponse("Welcome! Your IP is allowed.")
+
+```
+
+`firewall/urls.py`:
+
+```python
+from django.urls import path
+from .views import index
+
+urlpatterns = [
+    path('', index),
+]
+
+```
+
+`firewall_project/urls.py`:
+
+```python
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('firewall.urls')),
+]
+
+```
+
+---
+
+## 7. 초기 데이터 추가
+
+`python manage.py createsuperuser`로 관리자 계정 생성 후,
+
+관리자 페이지에서 `127.0.0.1` 또는 테스트 중인 IP를 허용 IP로 추가하세요.
+
+---
+
+## 8. 차단 로그 남기기
+
+`firewall/models.py`에 추가:
+
+```python
+class BlockedIPLog(models.Model):
+    ip_address = models.GenericIPAddressField()
+    accessed_path = models.CharField(max_length=255)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+```
+
+그리고 `middleware.py`에서 로그 남기기:
+
+```python
+from .models import BlockedIPLog
+
+if remote_ip not in allowed_ips:
+    BlockedIPLog.objects.create(ip_address=remote_ip, accessed_path=request.path)
+    return HttpResponseForbidden(f"Access denied for IP: {remote_ip}")
+
+```
+
+---
+
+## ✅ 요약
+
+| 구성 요소 | 역할 |
+| --- | --- |
+| `AllowedIP` 모델 | 접근 허용된 IP 저장 |
+| Middleware | 요청마다 IP 확인 후 차단 또는 통과 |
+| Admin 사이트 | IP 화이트리스트 관리 |
+| 로그 기록 | 차단된 IP 기록 (선택) |
+
+---
+
+## **허용된 IP(예: 127.0.0.1)를 직접 DB에 추가하는 코드**
+
+---
+
+## ✅ 방법 1: `shell`에서 직접 등록
+
+```bash
+python manage.py shell
+
+```
+
+```python
+from firewall.models import AllowedIP
+
+# 127.0.0.1 등록
+AllowedIP.objects.create(ip_address="127.0.0.1", description="localhost for development")
+# 현재 PC의 외부 IP도 등록 가능
+AllowedIP.objects.create(ip_address="192.168.0.10", description="내부 테스트 서버")
+
+```
+
+---
+
+## ✅ 방법 2: 마이그레이션 후 초기 데이터 자동 등록 (데이터 마이그레이션)
+
+`firewall/migrations/0002_auto_add_localhost.py` (직접 생성):
+
+```python
+from django.db import migrations
+
+def add_default_ip(apps, schema_editor):
+    AllowedIP = apps.get_model('firewall', 'AllowedIP')
+    AllowedIP.objects.create(ip_address="127.0.0.1", description="localhost default access")
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('firewall', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.RunPython(add_default_ip),
+    ]
+
+```
+
+```bash
+python manage.py migrate
+
+```
+
+---
+
+## ✅ 방법 3: `fixtures`로 등록
+
+`firewall/fixtures/allowed_ips.json`:
+
+```json
+[
+  {
+    "model": "firewall.allowedip",
+    "pk": 1,
+    "fields": {
+      "ip_address": "127.0.0.1",
+      "description": "localhost default"
+    }
+  }
+]
+
+```
+
+- 등록:
+
+```bash
+python manage.py loaddata allowed_ips.json
+
+```
+
+---
+
+![fire5.png](fire5.png)
+
+## 🔍 확인
+
+```bash
+python manage.py shell
+
+```
+
+```python
+from firewall.models import AllowedIP
+AllowedIP.objects.all()
+
+```
+
+---
+
+![fire2.png](fire2.png)
+
+## ✅ postman 테스트
+
+- allowdip : "10.223.112.34"
+- X-Forwarded-For: "10.223.112.35" 로 접속하면
+    - Access denied for IP: 10.223.112.35
+
+```jsx
+  {
+    "model": "firewall.allowedip",
+    "pk": 2,
+    "fields": {
+      "ip_address": "10.223.112.34",
+      "description": "Postman test"
+    }
+  }
+```
+
+![db.png](db.png)
+
+- allowdip : "10.223.112.34"
+- X-Forwarded-For: "10.223.112.34" 로 접속하면
+    - Access denied for IP: 10.223.112.35
+
+![db.png](db%201.png)
