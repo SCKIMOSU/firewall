@@ -1,4 +1,4 @@
-# [웹서버13] Django 방화벽(Firewall)
+# Django 방화벽(Firewall)
 
 ---
 
